@@ -1,0 +1,81 @@
+    OO   				------------------
+    OO OOOOOO				|Coding & Design:|
+    OOOOOOOOOO				|----------------|
+  OOOOOO     OOO			|Daniel Rashevsky|
+ OOO OOO     OOO			------------------
+OOO  OOO     OOO   
+OOO  OOO     OOO 
+OOO  OOO     OOO                    
+OOO  OOO     OOO   OOOOOOOOOOO    OOOO  OOOOO       OOOOOO
+OOO  OOO     OOO  OOOOOOOOOOOOO  OOOOOOOOOOOOO     OOOOOOOO
+OOO  OOO     OOO  OOO OOO   OOO OOO  OOO     OOO  OOO    OOO
+OOO  OOOOOOOOO	  OOO  OOO  OOOOOO   OOO     OOO  OOO    OOO
+OOO  OOOOOOOO	  OOO	OOOOOOOOO    OOO     OOO  OOO    OOO
+OOO  OOO OOO	  OOO	    OOO      OOO     OOO  OOOOOOOOOO
+OOO  OOO  OOOO    OOO  	    OOO      OOO     OOO  OOOOOOOOOO                                                                                                                                                                                              If you see this, you have either bothered scrolling all the way over here or...YOU HAVE TURNED ON WORD WRAP!
+OOOOOOOO    OOOOOOOOOOOOOOOOOOO      OOO      OOOOOOOOO  OOO
+OOOOOO        OOOOOOOOOOOOOOOO       OOO       OOO  OO   OOO
+						   OOO   OOO
+						   OOO	 OOO
+					           OOO  OOO
+						   OOOOOOO
+						    OOOOO
+-----------------------------------------------------------
+  Batch Pong Ver. 1.0 Time: 5:53 PM [Press any key...]
+-----------------------------------------------------------
+
+Abstract: 
+	This is the famous videogame Pong, implemented
+        as a batch file. It has 2 modes: multiplayer 
+	(online) and singleplayer (local). It has the 
+	ability to save scores and choose different
+        levels to play against the computer.
+
+External Files Needed:
+	- Scores directory/file
+	- Connection program
+	- Sound program (my beep one!)
+	- Random number program
+	- Title directory/file
+
+Intialization of Program (Program Phase 1):
+	- Check for a main directory (APPDATA), if it does
+          not exist, make a new one in Appdata
+	- Check for a directory for saved scores in 
+	  Appdata directory, if it does not 
+	  exist, make one
+	- Check for title dir/files, if not exist, make them
+	- Unpack programs into another directory if it does not exist
+	- Make time function
+	- Get version
+	- Make title function
+
+Menu Display (Program Phase 2):
+	- Store time with time function
+	- Display title page (above)
+	- Display Multiplayer option [M]
+	- Display Singleplayer option [S]
+	- Display Clear Scores option [C]
+	- Display View Scores option [V]
+
+Clear Scores (Program Phase 3-1):
+	- Get time and store
+	- Display title page (above)
+	- Prompt: Delete Scores? [Y/N]:
+	- If yes: delete if they exist and make
+	  a new directory, if they don't,
+	  make a new directory. Go to PP2.
+	- If no: go to PP2
+
+View Scores (Program Phase 3-2):
+	- Display ------Scores Viewer-------
+	- Check if scores folder exists/mkdir if not
+	- Display scores by, game #, and specify
+	  whether done in multiplayer [M] or singleplayer
+	  [S]. If singleplayer, display difficulty level,
+	  and if multiplayer, display who you played
+		- Score file: Plain text database
+		- Database entry: [ID]:[SCORE]:[M:PLAYER]OR[S:LEVEL]
+	- Display "No scores" if none exist
+
+	
