@@ -12,5 +12,5 @@ As it is written in pure batch, the screen may flicker occassionally.
 
 # Notes
 - The game creates a "BatchPong" folder in AppData to store scores and some game-related stuff.
-- Commands required to be on your system include: taskkill, tasklist, xcopy, choice
+- Commands required on your system include: taskkill, tasklist, xcopy, choice
 
