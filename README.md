@@ -2,7 +2,11 @@
 This is a Pong clone that I started in middle school (2016). I gave up on it when I ran into some serious bugs, before coming back and finishing it now (2020). It is written in pure Batch (Windows CMD shell commands).
 
 # How to Play
-Download __BatchPong.bat__ onto your computer and run it. The controls are:
+Download __BatchPong.bat__ onto your computer and run it. __Make sure to save it with ANSI encoding__ 
+(Copy the code > Notepad > Save As... > Encoding: ANSI > BatchPong.bat).
+
+The controls are:
+
 - W/S for Player 1
 - I/K for Player 2
 - [ENTER] to unfreeze key input when needed
