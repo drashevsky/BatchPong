@@ -1,10 +1,25 @@
 @echo off
+REM Batch Pong 1.0 by Daniel Rashevsky
+REM Developed 2016 & 2020
+REM
+REM Controls:
+REM 	W/S for Player 1
+REM	I/K for Player 2
+REM	[ENTER] to unfreeze key input when it glitches
+REM
+REM Developed in pure batch (no external programs). This means flickering!
+REM Works best on a beefier computer running Windows 10
+REM Creates "BatchPong" folder in AppData
+REM Required commands: taskkill, tasklist, xcopy
+
+
 :PROCESSCONTROL & REM Check for which process to start - the game has several during the actual game play, including one to get the KEYS and another to update the DISPlay
 	if "%1" EQU "KEYS" goto :KEYS
 	if "%1" EQU "DISP" goto :INIT
 	if "%1" EQU "CNTL" goto :INIT
 
 
+::--------------------------------------------------------------------------------Initialization--------------------------------------------------------------------------------
 
 :INIT & REM This label is used by the program in order to reinitialize itself, at the end of a subroutine such as a singleplayer game
 
@@ -83,14 +98,13 @@
 	%routines.displayTitle%
 
 	echo ------------------------------------------------------------
-	echo             [P]lay [S]cores [R]eset Time: %ltime%
-	set /p "=------------------------------------------------------------" 0> nul & choice.exe /c PSR /n > nul & endlocal
+	echo     [P]lay [M]ultiplayer [S]cores [R]eset Time: %ltime%
+	set /p "=------------------------------------------------------------" 0> nul & choice.exe /c PMSR /n > nul & endlocal
 
 	if %ERRORLEVEL% EQU 1 goto :LOADPLAY
-	if %ERRORLEVEL% EQU 2 goto :SCORES
-	if %ERRORLEVEL% EQU 3 goto :RESET
-	pause > nul
-	exit
+	if %ERRORLEVEL% EQU 2 set "multiplayer=on" & goto :LOADPLAY
+	if %ERRORLEVEL% EQU 3 goto :SCORES
+	if %ERRORLEVEL% EQU 4 goto :RESET
 
 
 
@@ -110,7 +124,7 @@
 
 
 
-:SCORES & REM Display scores
+:SCORES & REM Display scores over multiple pages
 	cls
 	call :ROUTINES.DIR.SCORES
 
@@ -118,12 +132,15 @@
 
 	setlocal EnableDelayedExpansion
 		set "FAIL=1"
-		for /f "tokens=1,2,3,4,5 delims=:" %%I IN (%DATADIR%\BatchPong\Scores\ScoreDB) DO (
+		for /f "tokens=1,2,3,4,5,6,7 delims=:" %%I IN (%DATADIR%\BatchPong\Scores\ScoreDB) DO (
 			echo.
-			if %%K EQU M echo Game %%I: %%J points against %%L in multiplayer: %%M & set "FAIL=0"
-			if %%K EQU S echo Game %%I: %%J points at Level %%L in singleplayer: %%M & set "FAIL=0"
+			if %%J EQU M echo Game %%I: %%L: %%M point^(s^), %%N: %%O point^(s^), Level %%K multiplayer & set "FAIL=0"
+			if %%J EQU S echo Game %%I: %%L: %%M point^(s^), Computer: %%O point^(s^), Level %%K singleplayer & set "FAIL=0"
+			
+			set /a "turnPage=%%I %% 10"
+			if !turnPage! EQU 0 echo. & pause & cls & echo ------------------------Scores Viewer-----------------------
 		)
-		if %FAIL% EQU 1 echo You have no scores to be displayed.
+		if %FAIL% EQU 1 echo. & echo You have no scores to be displayed.
 	endlocal
 
 	set "FAIL=1"
@@ -204,42 +221,57 @@
 
 
 
+REM Start the game process, save own PID so it can kill child processes when the game process ends
+
 :LOADPLAY
-	cls & echo Loading...
-	ping 127.0.0.1 -n 2 -w 10000 > nul
 	call :ROUTINES.DIR.MAIN
 	call :ROUTINES.DIR.SCORES
 	call :ROUTINES.DIR.GAMEDATA
 	call :ROUTINES.DIR.TITLEDATA
-	start "" /b cmd /c ^""%~f0" CNTL 3^>"%DATADIR%\BatchPong\GameData\COMMANDSTREAM" 4^<"%DATADIR%\BatchPong\GameData\KEYSTREAM"^"
-	goto:eof
 
+	title mainpong
+	for /f "tokens=2 USEBACKQ" %%F IN (`tasklist /NH /FI "WindowTitle eq mainpong*"`) DO set mainPID=%%F
+	
+	start "" /b /w cmd /c ^""%~f0" CNTL 3^>"%DATADIR%\BatchPong\GameData\COMMANDSTREAM" 4^<"%DATADIR%\BatchPong\GameData\KEYSTREAM"^"
+	for /f "tokens=2 USEBACKQ" %%F IN (`tasklist /fi "imagename eq cmd.exe" /fo list /v ^| findstr PID`) DO (
+		if %%F NEQ %mainPID% (
+			taskkill /PID %%F /F >nul 2>&1
+		)
+	)
+	taskkill /f /im xcopy.exe >nul 2>&1
+	goto :INIT
+
+
+
+REM Child process that runs alongside main game loop and streams keys back to it
 
 :KEYS
-setlocal EnableDelayedExpansion
+setlocal EnableDelayedExpansion	
 	for /f "delims=¬ eol=¬" %%A IN ('xcopy /w "%~f0" "%~f0" 2^> NUL') DO (
 		taskkill /f /im xcopy.exe
 		if not defined stopKeyFetch set "keyraw=%%A"
 		set "stopKeyFetch=1"
 	) 1>NUL 2>&1
 	set "keyraw=!keyraw:~-1!"
-	echo.NULL>&3
 	if "!keyraw!" EQU "w" echo.w>&3
 	if "!keyraw!" EQU "s" echo.s>&3
-	set /p status=<&4
-	if "%status%" EQU "terminate" taskkill /f /im xcopy.exe & goto:eof
+	if "!keyraw!" EQU "i" echo.i>&3
+	if "!keyraw!" EQU "k" echo.k>&3
+	if "!keyraw!" EQU "q" echo.q>&3
 	endlocal
 	goto :KEYS
 
 
 
+REM Child process that runs alongside main game loop and redraws the screen on command,
+REM stores entire frame (including spaces, newlines, backspaces) in variable before outputing
+
 :DISP
 setlocal EnableDelayedExpansion
 	set /p status=<&4
-	if "%status%" EQU "terminate" goto:eof
+	if "!status!" EQU "terminate" goto:eof
 	for /f "tokens=1,2,3,4,5 delims=:" %%A IN ("!status!") DO (
 		if "%%A" EQU "update_disp" (
-			cls
 			set /a "paddle.LINE.START.1=%%D+1"
 			set /a "paddle.LINE.START.2=%%E+1"
 			set /a "paddle.LINE.END.1=%%D+%paddle.global.length%"
@@ -250,10 +282,12 @@ setlocal EnableDelayedExpansion
 			for /l %%I IN (!paddle.LINE.START.2!,1,!paddle.LINE.END.2!) DO (
 				set "framebuffer.%%I=!framebuffer.%%I!^|"
 			)
-			set "framebuffer.%%C=!framebuffer.%%C:~0,%%B!%bs%O!framebuffer.%%C:~%%B,%cols%!"
+			set "framebuffer.%%C=!framebuffer.%%C:~0,%%B!%bs%@!framebuffer.%%C:~%%B,%cols%!"
 			for /l %%I IN (2,1,!linelimit!) DO (
 				set screenbuffer=!screenbuffer!%nl%!framebuffer.%%I!%bs%
 			)
+			
+			cls
 			echo.!screenbuffer!
 		)
 	)
@@ -262,36 +296,219 @@ setlocal EnableDelayedExpansion
 
 
 
+REM Separately started game process that runs in same window as child processes (KEYS and DISP), receiving keys and sending commands
+REM to redraw the screen. The CNTL portion gets player names and sets up game variables/state before jumping to the game loop portion.
+
 :CNTL
-	setlocal EnableDelayedExpansion
+setlocal EnableDelayedExpansion
+
+
+	::Get player name(s), depending on single or multiplayer
+
 	%routines.displayTitle%
 	echo.
-	set /p "playerName=Name of Player:"
+	set /p "playerName=Name of Player: "
+
 	if "%playerName%" EQU "" (
 		%routines.displayTitle%
 		echo.
-		echo Error: Player name is missing [Singleplayer].
+		echo Error: Player name is missing.
 		pause > nul
 		goto :CNTL
 	)
+
+	if defined multiplayer (
+		%routines.displayTitle%
+		echo.
+		set /p "otherPlayerName=Name of Second Player: "
+	) else (
+		set "otherPlayerName=Computer"
+	)
+
+	if "%otherPlayerName%" EQU "" (
+		%routines.displayTitle%
+		echo.
+		echo Error: Second player name is missing.
+		pause > nul
+		goto :CNTL
+	)
+
+
+	::Get game difficulty
+	
 	%routines.displayTitle%
 	echo.
 	set /p =Choose a difficulty: [1] [2] [3] [4] 0> nul
 	choice /c 1234 /n
-	set "difficulty=%errorlevel%"
+	
+	set /a "difficulty=%errorlevel%"
+	set /a "refreshrate.disp=30"
+	if %difficulty% EQU 1 set /a "refreshrate.game=22"
+	if %difficulty% EQU 2 set /a "refreshrate.game=18"
+	if %difficulty% EQU 3 set /a "refreshrate.game=16"
+	if %difficulty% EQU 4 set /a "refreshrate.game=14"
+
+	
+	::Initialize game variables/state such as score, game element positions and timing
+
+	set "gametime=1"
+	set "timer=100"
+	set "refreshrate.timer=250"
+
 	set /a "ball.Pos.X=%cols%/2"
 	set /a "ball.Pos.Y=%lines%/2"
 	set /a "paddle.Pos.1=%lines%/2-2"
 	set /a "paddle.Pos.2=%lines%/2-2"
-	set /a "ball.Dir.lr=%RANDOM% %% 2"
-	if "%ball.Dir.lr%" EQU  "1" set "ball.Dir.lr=2"
-	set /a "ball.Dir.delta=%RANDOM% %% 2
-	start "" /b cmd /c ^""%~f0" KEYS 3^>"%DATADIR%\BatchPong\GameData\KEYSTREAM" 4^<"%DATADIR%\BatchPong\GameData\COMMANDSTREAM" 1^>nul 2^>^&1^"
-	start "" /b cmd /c ^""%~f0" DISP 4^<"%DATADIR%\BatchPong\GameData\COMMANDSTREAM"^"
+	set /a "ball.Dir.delta.X=%RANDOM% %% 2"
+	set /a "ball.Dir.delta.Y=%RANDOM% %% 2"
+	if "%ball.Dir.delta.X%" EQU "0" set "ball.Dir.delta.X=-1"
+	if "%ball.Dir.delta.Y%" EQU "0" set "ball.Dir.delta.Y=-1"
+
+	set /a player1=0
+	set /a player2=0
+
+
+	::Start KEYS and DISP child processes, display newly initialized game state in title
+	
+	title %playerName%: %player1%  %otherPlayerName%: %player2%  Difficulty: %difficulty%  Time Left: %timer%
+	start "" /b cmd /c ^""%~f0" KEYS 3^>"%DATADIR%\BatchPong\GameData\KEYSTREAM" 1^>nul 2^>^&1^"
+	start "" /b cmd /c ^""%~f0" DISP 4^<"%DATADIR%\BatchPong\GameData\COMMANDSTREAM"^"	
+
+
+
+REM Game loop portion of game process, run the screen, keep track of score/time, etc
 
 :GAME
+
+	::Update internal refresh rates, which control how fast or slow the timer, display, and game state get updated
+
+	if "%gametime%" EQU "100000" set /a "gametime=1"
+	set /a "gametime+=1"
+	set /a "doDispRefresh=%gametime% %% %refreshrate.disp%"
+	set /a "doTimerRefresh=%gametime% %% %refreshrate.timer%"
+	set /a "doGameRefresh=%gametime% %% %refreshrate.game%"
+
+	
+	::Update paddle positions in response to key presses. Because of the shoddy key detection I'm using only one paddle can be moving at a time
+
 	set /p status=<&4
-	if "%status%" EQU "w" set /a "paddle.Pos.1-=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3 & 	set /a "ball.Pos.X-=2"
-	if "%status%" EQU "s" set /a "paddle.Pos.1+=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3 & 	set /a "ball.Pos.X+=2"
+	if not defined multiplayer (		
+		if "%status%" EQU "w" set /a "paddle.Pos.1-=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3
+		if "%status%" EQU "s" set /a "paddle.Pos.1+=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3
+	)
+
+	if defined multiplayer (
+		if %ball.Dir.delta.X% EQU -1 (
+			if "%status%" EQU "w" set /a "paddle.Pos.1-=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3
+			if "%status%" EQU "s" set /a "paddle.Pos.1+=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3
+		) else (
+			if "%status%" EQU "i" set /a "paddle.Pos.2-=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3
+			if "%status%" EQU "k" set /a "paddle.Pos.2+=2" & echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3
+		)
+	)
+
+
+	::Update timer and display at thier respective refresh rates. Display updating means sending the DISP process new positions for 
+	::everything. Timer ticks down to 0, then ends game.
+
+	if "%doDispRefresh%" EQU "0" (
+		echo.update_disp:%ball.Pos.X%:%ball.Pos.Y%:%paddle.Pos.1%:%paddle.Pos.2%>&3
+	)
+
+	if "%doTimerRefresh%" EQU "0" (
+		set /a "timer-=1"
+		if %timer% LEQ 0 goto :ENDGAME
+		title %playerName%: %player1%  %otherPlayerName%: %player2%  Difficulty: %difficulty%  Time Left: %timer%
+	)
+
+
+	::Update game state: the ball bouncing off the walls, scoring goals, colliding with the paddles, moving the "AI", and etc
+
+	if "%doGameRefresh%" EQU "0" (
+		if %ball.Pos.Y% LEQ 2 set /a "ball.Dir.delta.Y=1,ball.Pos.Y=2" & set /p "=%BELL%" 0> nul
+		if %ball.Pos.Y% GEQ %linelimit% set /a "ball.Dir.delta.Y=-1,ball.Pos.Y=%linelimit%-1" & set /p "=%BELL%" 0> nul
+
+		if %ball.Pos.X% LEQ 1 (
+			set /p "=%BELL%" 0> nul
+			set /a "ball.Dir.delta.X=1"
+			set /a "ball.Pos.X=1"
+			set /a "ball.Dir.delta.Y=!RANDOM! %% 2"
+			set /a "lowerHitBoxBound=%paddle.Pos.1%"
+			set /a "upperHitBoxBound=%paddle.Pos.1%+%paddle.global.length%+1"
+			if %ball.Pos.Y% LSS !lowerHitBoxBound! set /a "player2+=1" & call :GOAL
+			if %ball.Pos.Y% GTR !upperHitBoxBound! set /a "player2+=1" & call :GOAL
+		)
+		if %ball.Pos.X% GEQ %cols% (
+			set /p "=%BELL%" 0> nul
+			set /a "ball.Dir.delta.X=-1"
+			set /a "ball.Pos.X=%cols%"
+			set /a "ball.Dir.delta.Y=!RANDOM! %% 2"
+			set /a "lowerHitBoxBound=%paddle.Pos.2%"
+			set /a "upperHitBoxBound=%paddle.Pos.2%+%paddle.global.length%+1"
+			if %ball.Pos.Y% LSS !lowerHitBoxBound! set /a "player1+=1" & call :GOAL
+			if %ball.Pos.Y% GTR !upperHitBoxBound! set /a "player1+=1" & call :GOAL
+		)
+		if "%ball.Dir.delta.Y%" EQU "0" set "ball.Dir.delta.Y=-1"
+
+		set /a "ball.Pos.X+=%ball.Dir.delta.X%"
+		set /a "ball.Pos.Y+=%ball.Dir.delta.Y%"
+
+		if not defined multiplayer (
+			if %ball.Dir.delta.X% EQU 1 (
+				set /a "adjustedPos=%paddle.Pos.2% + 2"
+				if %ball.Pos.Y% GEQ !adjustedPos! set /a "paddle.Pos.2+=1"
+				if %ball.Pos.Y% LSS !adjustedPos! set /a "paddle.Pos.2-=1"
+			)
+		) else (
+			if %paddle.Pos.2% LEQ 1 set "paddle.Pos.2=1"
+			if %paddle.Pos.2% GEQ %linelimit% set /a "paddle.Pos.2=%linelimit%-%paddle.global.length%"
+		)
+
+		if %paddle.Pos.1% LEQ 1 set "paddle.Pos.1=1"
+		if %paddle.Pos.1% GEQ %linelimit% set /a "paddle.Pos.1=%linelimit%-%paddle.global.length%"
+	)
+
 	set status=
 	goto :GAME
+
+
+	
+REM Subroutine that updates the score, title, and ball when a goal is scored
+
+:GOAL
+	set /a "ball.Pos.X=%cols%/2"
+	set /a "ball.Pos.Y=%lines%/2"
+	set /a "ball.Dir.delta.X=%RANDOM% %% 2"
+	set /a "ball.Dir.delta.Y=%RANDOM% %% 2"
+	if "%ball.Dir.delta.X%" EQU "0" set "ball.Dir.delta.X=-1"
+	if "%ball.Dir.delta.Y%" EQU "0" set "ball.Dir.delta.Y=-1"
+	title %playerName%: %player1%  %otherPlayerName%: %player2%  Difficulty: %difficulty%  Time Left: %timer%
+	goto:eof
+
+
+
+REM When the timer ticks down to 0, this saves the scores and stalls until the user presses a key to go to the main menu
+REM I didn't use pause here because XCOPY from KEYS would make it so you would have to press a key twice.
+
+:ENDGAME
+	set /a "lastID=0"
+	for /f "tokens=1,2,3,4,5 delims=:" %%I IN (%DATADIR%\BatchPong\Scores\ScoreDB) DO set /a "lastID=%%I"
+	set /a "lastID+=1"
+
+	if defined multiplayer (
+		echo !lastID!:M:%difficulty%:%playerName%:%player1%:%otherPlayerName%:%player2% >> %DATADIR%\BatchPong\Scores\ScoreDB
+	) else (
+		echo !lastID!:S:%difficulty%:%playerName%:%player1%:%otherPlayerName%:%player2% >> %DATADIR%\BatchPong\Scores\ScoreDB
+	)
+	
+	echo terminate>&3
+	%routines.displayTitle%
+	echo ------------------------------------------------------------
+	echo              Game over^^! Press [q] to continue...
+	set /p "=------------------------------------------------------------" 0> nul
+	goto :WAITKEY
+
+:WAITKEY
+	set /p status=<&4
+	if "%status%" NEQ "q" goto :WAITKEY
+	exit
