@@ -1,4 +1,8 @@
 # BatchPong
+
+![Title screen](screenshot_1.png)
+![Gameplay](screenshot_2.png)
+
 This is a Pong clone that I started in middle school (2016). I gave up on it when I ran into some serious bugs, before coming back and finishing it now (2020). It is written in pure Batch (Windows CMD shell commands).
 
 # How to Play
